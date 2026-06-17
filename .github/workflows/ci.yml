@@ -1,0 +1,23 @@
+# NOTE: Before this workflow can deploy to production, you must create the
+# "production" environment in GitHub:
+#   Settings → Environments → New environment → "production"
+#   Then add required reviewers and any other protection rules.
+#   Also add the CONFIG_REPO_TOKEN secret either at repo or environment level.
+
+on:
+  push:
+    branches: [main, prod]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  pipeline:
+    uses: Mooroon5-CNP/ci-templates/.github/workflows/pipeline.yml@main
+    with:
+      app_name: "dancing-duck"
+      app_port: "8080"
+      config_repo_url: "https://github.com/Mooroon5-CNP/config-repo"
+    secrets:
+      CONFIG_REPO_TOKEN: ${{ secrets.CONFIG_REPO_TOKEN }}
