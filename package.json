@@ -8,6 +8,7 @@
     "lint": "eslint src/"
   },
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "express": "^4",
     "winston": "^3"
   },
@@ -19,7 +20,10 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "reporters": ["default", "jest-junit"],
+    "reporters": [
+      "default",
+      "jest-junit"
+    ],
     "testResultsProcessor": "jest-junit"
   },
   "jest-junit": {

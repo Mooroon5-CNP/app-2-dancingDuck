@@ -1,5 +1,6 @@
 const express = require('express');
 const winston = require('winston');
+const db = require('./db');
 
 const PORT = process.env.PORT || 8080;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
@@ -26,6 +27,19 @@ app.use((req, res, next) => {
 
 app.get('/healthz', (req, res) => res.status(200).json({ status: 'ok' }));
 app.get('/ready', (req, res) => res.status(200).json({ status: 'ready' }));
+
+app.post('/api/quack', (req, res) => {
+  const { lyric } = req.body;
+  if (!lyric || typeof lyric !== 'string' || lyric.trim().length === 0) {
+    return res.status(400).json({ error: 'lyric is required' });
+  }
+  const quack = db.saveQuack(lyric.trim().slice(0, 200));
+  res.status(201).json(quack);
+});
+
+app.get('/api/quacks', (req, res) => {
+  res.json({ quacks: db.getRecentQuacks(20), total: db.countQuacks() });
+});
 
 app.get('/', (req, res) => {
   res.setHeader('Content-Type', 'text/html');
@@ -57,9 +71,7 @@ app.get('/', (req, res) => {
       user-select: none;
       transition: transform 0.1s;
     }
-    .duck-container.dancing {
-      animation: dance 0.4s infinite alternate;
-    }
+    .duck-container.dancing { animation: dance 0.4s infinite alternate; }
     @keyframes dance {
       0%   { transform: rotate(-15deg) translateY(0px); }
       25%  { transform: rotate(0deg)   translateY(-12px); }
@@ -120,6 +132,38 @@ app.get('/', (req, res) => {
     }
     button:hover { background: #c0392b; }
     .hint { margin-top: 1rem; font-size: 0.85rem; color: #a04000; }
+    .wall {
+      width: 100%;
+      max-width: 420px;
+      margin-top: 2rem;
+    }
+    .wall-header {
+      font-size: 0.9rem;
+      font-weight: bold;
+      color: #a04000;
+      margin-bottom: 0.6rem;
+    }
+    .wall-list {
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .wall-item {
+      background: rgba(255,255,255,0.75);
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.95rem;
+      color: #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .wall-item .lyric { flex: 1; word-break: break-word; }
+    .wall-item .time { font-size: 0.75rem; color: #888; white-space: nowrap; }
+    .wall-empty { color: #a04000; font-size: 0.9rem; font-style: italic; text-align: center; padding: 1rem 0; }
   </style>
 </head>
 <body>
@@ -136,6 +180,13 @@ app.get('/', (req, res) => {
   </div>
   <p class="hint">Press Enter or click Sing — click the duck to dance!</p>
 
+  <div class="wall">
+    <div class="wall-header">🎶 Wall of Quacks — <span id="quack-count">0</span> total</div>
+    <div class="wall-list" id="wall-list">
+      <div class="wall-empty">No quacks yet — be the first! 🦆</div>
+    </div>
+  </div>
+
   <script>
     const duck = document.getElementById('duck');
     const bubble = document.getElementById('bubble');
@@ -149,7 +200,44 @@ app.get('/', (req, res) => {
       danceTimer = setTimeout(() => duck.classList.remove('dancing'), ms || 3000);
     }
 
-    function sing() {
+    function timeAgo(iso) {
+      const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+      if (diff < 60) return diff + 's ago';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      return Math.floor(diff / 86400) + 'd ago';
+    }
+
+    async function loadWall() {
+      try {
+        const res = await fetch('/api/quacks');
+        const data = await res.json();
+        document.getElementById('quack-count').textContent = data.total;
+        const list = document.getElementById('wall-list');
+        if (data.quacks.length === 0) {
+          list.innerHTML = '<div class="wall-empty">No quacks yet — be the first! 🦆</div>';
+          return;
+        }
+        list.innerHTML = '';
+        data.quacks.forEach(q => {
+          const item = document.createElement('div');
+          item.className = 'wall-item';
+          const lyric = document.createElement('span');
+          lyric.className = 'lyric';
+          lyric.textContent = '🎵 ' + q.lyric;
+          const time = document.createElement('span');
+          time.className = 'time';
+          time.textContent = timeAgo(q.created_at);
+          item.appendChild(lyric);
+          item.appendChild(time);
+          list.appendChild(item);
+        });
+      } catch (e) {
+        console.error('Failed to load wall', e);
+      }
+    }
+
+    async function sing() {
       const text = input.value.trim();
       if (!text) {
         bubble.textContent = 'Quack! Give me some lyrics! 🎶';
@@ -159,11 +247,23 @@ app.get('/', (req, res) => {
       bubble.textContent = '🎵 ' + text + ' 🎶';
       startDancing(text.length * 80 + 2000);
       input.value = '';
+      try {
+        await fetch('/api/quack', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lyric: text }),
+        });
+        await loadWall();
+      } catch (e) {
+        console.error('Failed to save quack', e);
+      }
     }
 
     btn.addEventListener('click', sing);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sing(); });
     duck.addEventListener('click', () => startDancing(3000));
+
+    loadWall();
   </script>
 </body>
 </html>`);
