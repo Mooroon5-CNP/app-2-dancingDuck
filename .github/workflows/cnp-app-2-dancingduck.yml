@@ -1,0 +1,51 @@
+name: CNP — app-2-dancingduck
+'on':
+  push:
+    branches:
+      - main
+      - prod
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: cnp-app-2-dancingduck-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  pipeline:
+    uses: Mooroon5-CNP/ci-templates/.github/workflows/pipeline.yml@c51ce20827fba214fc72cdd5501bcbffffb1c43d
+    with:
+      app_name: app-2-dancingduck
+      target_cloud: both
+      config_repo_url: https://github.com/Mooroon5-CNP/config-repo
+      gitops_mode: portal
+      app_port: '8080'
+    secrets:
+      CONFIG_REPO_TOKEN: ${{ secrets.CONFIG_REPO_TOKEN }}
+  failover-images:
+    needs:
+      - pipeline
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/prod' && needs.pipeline.result == 'success' }}
+    steps:
+      - name: Record immutable images
+        env:
+          CNP_APP: app-2-dancingduck
+          CNP_REVISION: ${{ github.sha }}
+          CNP_DIGEST: ${{ needs.pipeline.outputs.image_digest }}
+          CNP_GCP_REGISTRY: europe-west9-docker.pkg.dev/cnp-terraform-512313/cnp-registry
+        run: |-
+          python3 - <<'PY'
+          import json, os, re
+          assert re.fullmatch(r'sha256:[a-f0-9]{64}', os.environ['CNP_DIGEST'])
+          app, digest = os.environ['CNP_APP'], os.environ['CNP_DIGEST']
+          record = {'app': app, 'revision': os.environ['CNP_REVISION'], 'digest': digest,
+              'gcp': os.environ['CNP_GCP_REGISTRY'] + '/' + app + '@' + digest,
+              'aws': '804210702561.dkr.ecr.eu-west-3.amazonaws.com/' + app + '@' + digest}
+          with open('cnp-images.json', 'w') as file: json.dump(record, file)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cnp-failover-images-${{ github.sha }}
+          path: cnp-images.json
+          if-no-files-found: error
+          retention-days: 30
