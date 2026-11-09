@@ -4,6 +4,7 @@ name: CNP — app-2-dancingduck
     branches:
       - main
       - prod
+  workflow_dispatch: {}
 permissions:
   contents: read
   id-token: write
