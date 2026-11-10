@@ -11,7 +11,9 @@ WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
 COPY package*.json ./
-RUN mkdir -p /data && chown -R node:node /app /data
+# npm is only needed in the builder; omit its bundled dependencies at runtime.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+    && mkdir -p /data && chown -R node:node /app /data
 USER 1000
 EXPOSE 8080
 CMD ["node", "src/index.js"]
