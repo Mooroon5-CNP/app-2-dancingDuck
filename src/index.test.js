@@ -27,6 +27,22 @@ describe('dancing-duck', () => {
     expect(res.text).toContain('🦆');
   });
 
+  it('shows CHANGE from the environment in the top-right indicator', async () => {
+    const previous = process.env.CHANGE;
+    try {
+      process.env.CHANGE = 'Variables OK';
+      const res = await request(app).get('/');
+      expect(res.text).toContain('class="change-indicator">CHANGE: Variables OK</div>');
+      process.env.CHANGE = '<script>alert(1)</script>';
+      const escaped = await request(app).get('/');
+      expect(escaped.text).toContain('CHANGE: &lt;script&gt;alert(1)&lt;/script&gt;');
+      expect(escaped.text).not.toContain('CHANGE: <script>');
+    } finally {
+      if (previous === undefined) delete process.env.CHANGE;
+      else process.env.CHANGE = previous;
+    }
+  });
+
   describe('POST /api/quack', () => {
     it('saves a lyric and returns 201', async () => {
       const res = await request(app).post('/api/quack').send({ lyric: 'hello duck' });

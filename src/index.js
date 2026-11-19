@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const winston = require('winston');
 const db = require('./db');
@@ -7,6 +8,9 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const DD_SERVICE = process.env.DD_SERVICE || 'dancing-duck';
 const DD_ENV = process.env.DD_ENV || 'development';
 const DD_VERSION = process.env.DD_VERSION || '1.0.0';
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+})[char]);
 
 const logger = winston.createLogger({
   level: LOG_LEVEL,
@@ -42,6 +46,7 @@ app.get('/api/quacks', (req, res) => {
 });
 
 app.get('/', (req, res) => {
+  const change = escapeHtml(process.env.CHANGE || 'not set');
   res.setHeader('Content-Type', 'text/html');
   res.status(200).send(`<!DOCTYPE html>
 <html lang="en">
@@ -62,6 +67,18 @@ app.get('/', (req, res) => {
       padding: 2rem;
     }
     h1 { font-size: 2.5rem; color: #e65c00; margin-bottom: 0.5rem; }
+    .change-indicator {
+      position: fixed;
+      top: 0.75rem;
+      right: 0.75rem;
+      max-width: calc(100vw - 1.5rem);
+      padding: 0.3rem 0.5rem;
+      border-radius: 0.35rem;
+      background: rgba(255,255,255,0.8);
+      color: #7d3c20;
+      font-size: 0.75rem;
+      overflow-wrap: anywhere;
+    }
     .subtitle { color: #c0392b; margin-bottom: 2rem; font-size: 1.1rem; }
     .duck-container {
       font-size: 8rem;
@@ -167,6 +184,7 @@ app.get('/', (req, res) => {
   </style>
 </head>
 <body>
+  <div class="change-indicator">CHANGE: ${change}</div>
   <h1>🎵 Dancing Duck 🎵</h1>
   <p class="subtitle">Type something and make the duck sing!</p>
 
