@@ -11,6 +11,7 @@ WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
 COPY package*.json ./
+COPY .env ./.env
 # npm is only needed in the builder; omit its bundled dependencies at runtime.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && mkdir -p /data && chown -R node:node /app /data
